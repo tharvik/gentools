@@ -1,0 +1,87 @@
+#!/bin/sh
+
+set -u
+
+tmpfile="$(mktemp)"
+status_file="$(mktemp)"
+failed_cmd=''
+
+trap on_exit EXIT INT
+
+on_exit() {
+	status=$?
+
+	if [ -n "${failed_cmd}" ]
+	then
+		echo 'some commands have failed'
+		echo "${failed_cmd}" | tail -n +2 | while read l
+		do
+			echo " - ${l}"
+		done
+	fi
+
+	rm -f "${tmpfile}" "${status_file}"
+
+	exit $status
+}
+
+unbuffer() {
+	stdbuf -i 0 -o 0 "${@}"
+}
+
+msg() {
+	echo '>> check messages and press enter' | tr -d '\n'
+	read null
+}
+
+run() {
+	echo ">> ${@}"
+
+	local regex=''
+	local opts=''
+	case "${1}" in
+		emerge)
+			regex='Messages'
+			opts='--color=y';;
+		smart-live-rebuild)
+			regex='Messages'
+			opts='-- --color=y';;
+	esac
+
+	( unbuffer "${@}" ${opts} 2>&1; echo $? > "${status_file}" ) | tee "${tmpfile}"
+	status=$(cat "${status_file}")
+
+	if [ ${status} -ne 0 ]
+	then
+		failed_cmd="${failed_cmd}
+		${@}"
+	fi
+
+	if [ -n "${regex}" ] && grep -q "${regex}" "${tmpfile}"
+	then
+		msg
+	fi
+
+	return ${status}
+}
+
+try_run() {
+	type "${1}" >/dev/null && run "${@}"
+
+	return $?
+}
+
+# portage
+run	emerge --update --newuse --deep --with-bdeps=y --backtrack=999 @world "${@}"
+try_run	smart-live-rebuild
+run	emerge @preserved-rebuild
+run	emerge --depclean
+try_run	eclean -d distfiles
+try_run	glsa-check -t all
+run	rm -rf /var/tmp/portage
+
+# system
+try_run	polipo -x
+try_run	updatedb
+try_run	rlpkg --all --reset
+try_run	revdep-pax -f
