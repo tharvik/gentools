@@ -1,0 +1,67 @@
+#!/bin/sh
+
+set -eu
+
+syntax () {
+	cat <<- EOF
+Generate unmask for @installed if needed.
+One can remove some USE flags and keyword, launch this and it will use emerge to
+generate a list of needed keywords and USEs.
+	EOF
+
+	exit 1
+}
+
+if [ $# -ne 0 ]
+then
+	syntax
+fi
+
+tmpfile="$(mktemp)"
+
+trap on_exit EXIT INT
+
+on_exit() {
+	status=$?
+
+	rm -f "${tmpfile}"
+
+	exit $status
+}
+
+save_changes() {
+	local dir="${1}"
+
+	awk "	BEGIN {b = 0}
+		b == 1 && /^$/ {exit}
+		b == 1 {print}
+		/see \"${dir}\"/ {b = 1}
+		" "${tmpfile}" >> "/etc/portage/${dir}/required"
+}
+
+pkgs=''
+while true
+do
+	emerge --emptytree --pretend @installed ${pkgs} \
+		2>"${tmpfile}" > /dev/null || :
+
+	for f in accept_keywords license unmask use
+	do
+		save_changes "package.${f}"
+	done
+
+	pkgs=''
+	for p in $(awk '
+		/necessary to proceed/ {exit}
+		/^[A-Za-z0-9_]/ && ! /^WARNING/ {print $1}
+		/required by/ {
+			match($0, "required by [(]([^,]+)", arr)
+			print arr[1] | "parse_atom category package slot"
+		}
+		' "${tmpfile}" | sort -u)
+	do
+		pkgs="${pkgs} ${p}"
+	done
+
+	[ -z "${pkgs}" ] && break
+done
