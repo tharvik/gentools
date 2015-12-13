@@ -1,0 +1,96 @@
+#!/bin/awk -f
+
+function parse_pkg(line,	cat, pn, pv, repo, arr) {
+	cat="([A-Za-z0-9_][A-Za-z0-9+_.-]*)"
+	pn="([A-Za-z0-9_][A-Za-z0-9+_-]*)"
+	pv="([0-9]+(.[0-9]+)*[a-z]?((_alpha|_beta|_pre|_rc|_p)[0-9]*)?(-r[0-9]+)?)"
+	b_slot="[A-Za-z0-9_][A-Za-z0-9+_.-]*"
+	slot="(" b_slot ")(/" b_slot ")?"
+	repo="([A-Za-z0-9_][A-Za-z0-9_-]*)"
+
+	match(line, cat "/" pn "-" pv ":" slot "::" repo, arr)
+
+	category = arr[1]
+	package = arr[2]
+	version = arr[3]
+	slot = arr[8]
+	repository = arr[10]
+}
+
+function print_pkg(	selector) {
+
+	if(opts["package"])
+		selector = package
+
+	if(opts["version"])
+		if(selector)
+			selector = selector "-" version
+		else
+			selector = version
+
+	if(opts["category"])
+		if(selector)
+			selector = category "/" selector
+		else
+			selector = category
+
+	if(opts["slot"])
+		if(selector)
+			selector = selector ":" slot
+		else
+			selector = slot
+
+	if(opts["repository"])
+		if(selector)
+			selector = selector "::" repository
+		else
+			selector = repository
+
+	print selector
+}
+
+function syntax(	opt) {
+	print "Parse a fully qualified atom on stdin and output the wanted"
+	print "parts."
+	print
+	print "One can select:"
+	for(opt in opts)
+		print " - " opt
+	print
+	print "For example, to get 'gentools', one can do"
+	print "  echo 'app-portage/gentools-9999:0::tharvik' | parse_atom package"
+
+	exit 1
+}
+
+function parse_opts(	got_some_arg, arg) {
+	opts["category"] = 0
+	opts["package"] = 0
+	opts["version"] = 0
+	opts["slot"] = 0
+	opts["repository"] = 0
+
+	if(ARGC == 1)
+		syntax()
+
+	got_some_arg = 0
+	delete ARGV[0]
+	for(arg in ARGV)
+		if(ARGV[arg] in opts) {
+			opts[ARGV[arg]] = 1
+			got_some_arg = 1
+			delete ARGV[arg]
+		}
+
+	if (! got_some_arg)
+		syntax()
+}
+
+BEGIN {
+	parse_opts()
+}
+
+{
+	parse_pkg($0)
+	print_pkg()
+}
