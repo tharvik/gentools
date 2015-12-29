@@ -1,67 +1,155 @@
-#!/bin/sh
+#!/usr/bin/env python3
 
-set -eu
+import sys, subprocess, re, os, itertools, random
+import parse_atom
 
-syntax () {
-	cat <<- EOF
-Generate unmask for @installed if needed.
+def syntax():
+    print("""
+Generate unmask for given args if needed.
 One can remove some USE flags and keyword, launch this and it will use emerge to
 generate a list of needed keywords and USEs.
-	EOF
+    """.strip())
 
-	exit 1
-}
+    sys.exit(1)
 
-if [ $# -ne 0 ]
-then
-	syntax
-fi
+def get_file_size(path):
+    try:
+        return os.path.getsize(path)
+    except OSError:
+        return 0
 
-tmpfile="$(mktemp)"
+def save_changes(stderr, directory):
 
-trap on_exit EXIT INT
+    global pkgs_pool
+    global pkgs
 
-on_exit() {
-	status=$?
+    begin_re = re.compile(r' \(see "{}" in the portage\(5\) man page for more details\)'.format(directory))
+    path = '/etc/portage/{}/required'.format(directory)
+    old_size = get_file_size(path)
 
-	rm -f "${tmpfile}"
+    with open(path, 'a') as f:
 
-	exit $status
-}
+        copying = False
 
-save_changes() {
-	local dir="${1}"
+        for l in stderr.split('\n'):
 
-	awk "	BEGIN {b = 0}
-		b == 1 && /^$/ {exit}
-		b == 1 {print}
-		/see \"${dir}\"/ {b = 1}
-		" "${tmpfile}" >> "/etc/portage/${dir}/required"
-}
+            if copying and l is "":
+                copying = False
 
-pkgs=''
-while true
-do
-	emerge --emptytree --pretend @installed ${pkgs} \
-		2>"${tmpfile}" > /dev/null || :
+            if copying:
+                print(l, file=f)
 
-	for f in accept_keywords license unmask use
-	do
-		save_changes "package.${f}"
-	done
+            if begin_re.match(l):
+                copying = True
 
-	pkgs=''
-	for p in $(awk '
-		/necessary to proceed/ {exit}
-		/^[A-Za-z0-9_]/ && ! /^WARNING/ {print $1}
-		/required by/ {
-			match($0, "required by [(]([^,]+)", arr)
-			print arr[1] | "parse_atom category package slot"
-		}
-		' "${tmpfile}" | sort -u)
-	do
-		pkgs="${pkgs} ${p}"
-	done
+    new_size = get_file_size(path)
+    if new_size > old_size:
+            print('>>> adding changes to ' + directory)
 
-	[ -z "${pkgs}" ] && break
-done
+def get_parents(atom):
+
+    cmd = ['qdepends', '-C', '-Q', atom.to_str(['category', 'package'])]
+
+    proc = subprocess.Popen(cmd,
+            stdout=subprocess.PIPE,
+            universal_newlines=True)
+
+    stdout, stderr = proc.communicate(atom)
+
+    acc = set()
+    for l in stdout.split('\n'):
+        if l is '':
+            continue
+
+        a = parse_atom.atom(l)
+        acc.add(a)
+
+    return acc
+
+def get_next_iter():
+
+    global pkgs_pool
+
+    if len(pkgs_pool) is 0:
+        pkgs_pool = set()
+        return (set(), sys.argv[1:])
+
+    available = pkgs_pool - already_done
+    if len(available) is 0:
+        print("> unable to stabilize")
+        sys.exit(1)
+
+    pkgs_pack = available.pop()
+    already_done.add(pkgs_pack)
+    pkgs_pool.remove(pkgs_pack)
+
+    pkgs, deps = pkgs_pack
+
+    ret = set()
+    ret.add(pkgs)
+    ret.update(deps)
+
+    return (ret, set())
+
+## main begin
+
+if len(sys.argv) is 1 or '-h' in sys.argv or '--help' in sys.argv:
+    syntax()
+
+already_done = set()
+pkgs_pool = set()
+
+pkg_re = re.compile(r'^[A-Za-z0-9_][A-Za-z0-9+_.-]*/[A-Za-z0-9_][A-Za-z0-9+_-]*:[A-Za-z0-9_][A-Za-z0-9+_.-]*$')
+dep_re = re.compile(r'required by [(]([^,]+)')
+
+while True:
+
+    pkgs, flags = get_next_iter()
+
+    # run emerge
+    cmd = ['emerge', '--pretend']
+    cmd += flags
+    cmd += set(map(lambda x: x.to_str(['category', 'package', 'slot']), pkgs))
+
+    print('>> ' + ' '.join(cmd))
+    proc = subprocess.Popen(cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            universal_newlines=True)
+
+    stdout, stderr = proc.communicate()
+
+    if stderr is "" and len(pkgs) is 0:
+        break
+
+    # generate next pkgs to emerge
+    current_atom = None
+    current_blocks = set()
+    for l in stderr.split('\n'):
+        pkg_match = pkg_re.match(l)
+        dep_match = dep_re.search(l)
+
+        if pkg_match:
+            pkg = parse_atom.atom(pkg_match.group())
+
+            if current_atom:
+                pkgs_pool.add((current_atom, frozenset(current_blocks)))
+                current_blocks = set()
+
+            current_atom = pkg
+
+        elif dep_match:
+            atom = dep_match.group(1)
+            pkg = parse_atom.atom(atom)
+
+            current_blocks.add(pkg)
+
+    if current_atom:
+        pkgs_pool.add((current_atom, frozenset(current_blocks)))
+
+    #for p in frozenset(pkgs):
+    #   pkgs.update(get_parents(p))
+
+    # save the needed flags
+    for f in ['accept_keywords', 'license', 'unmask', 'use']:
+        save_changes(stderr, "package." + f)

@@ -1,96 +1,37 @@
-#!/bin/awk -f
+#!/usr/bin/env python3
 
-function parse_pkg(line,	cat, pn, pv, repo, arr) {
-	cat="([A-Za-z0-9_][A-Za-z0-9+_.-]*)"
-	pn="([A-Za-z0-9_][A-Za-z0-9+_-]*)"
-	pv="([0-9]+(.[0-9]+)*[a-z]?((_alpha|_beta|_pre|_rc|_p)[0-9]*)?(-r[0-9]+)?)"
-	b_slot="[A-Za-z0-9_][A-Za-z0-9+_.-]*"
-	slot="(" b_slot ")(/" b_slot ")?"
-	repo="([A-Za-z0-9_][A-Za-z0-9_-]*)"
+from parse_atom import *
 
-	match(line, cat "/" pn "-" pv ":" slot "::" repo, arr)
+valid_line = 'app-portage/gentools-9999:0/0::tharvik'
 
-	category = arr[1]
-	package = arr[2]
-	version = arr[3]
-	slot = arr[8]
-	repository = arr[10]
-}
+def syntax():
 
-function print_pkg(	selector) {
+    print("""
+Parse a fully qualified atom on stdin and output the wanted parts.
 
-	if(opts["package"])
-		selector = package
+One can select:
+    """.strip())
 
-	if(opts["version"])
-		if(selector)
-			selector = selector "-" version
-		else
-			selector = version
+    for opt in atom(valid_line).__dict__.keys():
+            print(' - ' + opt)
+    print()
+    print("""
+For example, to get 'gentools', one can do
+  echo '{}' | parse_atom package
+    """.strip().format(valid_line))
 
-	if(opts["category"])
-		if(selector)
-			selector = category "/" selector
-		else
-			selector = category
+    sys.exit(1)
 
-	if(opts["slot"])
-		if(selector)
-			selector = selector ":" slot
-		else
-			selector = slot
+def main():
+    if len(sys.argv) is 1 or len(set(sys.argv[1:]) - atom(valid_line).__dict__.keys()) > 0:
+        syntax()
 
-	if(opts["repository"])
-		if(selector)
-			selector = selector "::" repository
-		else
-			selector = repository
+    for l in sys.stdin:
+        l = l.strip()
 
-	print selector
-}
+        a = atom(l)
+        ret = a.to_str(sys.argv[1:])
+        if ret is not '':
+            print(ret)
 
-function syntax(	opt) {
-	print "Parse a fully qualified atom on stdin and output the wanted"
-	print "parts."
-	print
-	print "One can select:"
-	for(opt in opts)
-		print " - " opt
-	print
-	print "For example, to get 'gentools', one can do"
-	print "  echo 'app-portage/gentools-9999:0::tharvik' | parse_atom package"
-
-	exit 1
-}
-
-function parse_opts(	got_some_arg, arg) {
-	opts["category"] = 0
-	opts["package"] = 0
-	opts["version"] = 0
-	opts["slot"] = 0
-	opts["repository"] = 0
-
-	if(ARGC == 1)
-		syntax()
-
-	got_some_arg = 0
-	delete ARGV[0]
-	for(arg in ARGV)
-		if(ARGV[arg] in opts) {
-			opts[ARGV[arg]] = 1
-			got_some_arg = 1
-			delete ARGV[arg]
-		}
-
-	if (! got_some_arg)
-		syntax()
-}
-
-BEGIN {
-	parse_opts()
-}
-
-{
-	parse_pkg($0)
-	print_pkg()
-}
+main()
