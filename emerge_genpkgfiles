@@ -12,104 +12,48 @@ generate a list of needed keywords and USEs.
 
     sys.exit(1)
 
-def get_file_size(path):
-    try:
-        return os.path.getsize(path)
-    except OSError:
-        return 0
-
-def save_changes(stderr, directory):
-
-    global pkgs_pool
-    global pkgs
+def save_change(stderr, directory):
 
     begin_re = re.compile(r' \(see "{}" in the portage\(5\) man page for more details\)'.format(directory))
     path = '/etc/portage/{}/required'.format(directory)
-    old_size = get_file_size(path)
 
-    with open(path, 'a') as f:
+    content = ''
+    copying = False
+    for l in stderr.split('\n'):
 
-        copying = False
+        if copying and l is "":
+            copying = False
 
-        for l in stderr.split('\n'):
+        if copying:
+            content += l + '\n'
 
-            if copying and l is "":
-                copying = False
+        if begin_re.match(l):
+            copying = True
 
-            if copying:
-                print(l, file=f)
+    if content is not '':
+        with open(path, 'a') as f:
+            print(content, file=f)
 
-            if begin_re.match(l):
-                copying = True
+        print('>>> adding changes to ' + directory)
 
-    new_size = get_file_size(path)
-    if new_size > old_size:
-            print('>>> adding changes to ' + directory)
+def save_changes(stderr):
 
-def get_parents(atom):
+    element_re = re.compile(r' \(see "(package.[^"]+)" in the portage\(5\) man page for more details\)')
 
-    cmd = ['qdepends', '-C', '-Q', atom.to_str(['category', 'package'])]
+    elements = set()
+    for l in stderr.split('\n'):
 
-    proc = subprocess.Popen(cmd,
-            stdout=subprocess.PIPE,
-            universal_newlines=True)
+        element_match = element_re.match(l)
 
-    stdout, stderr = proc.communicate(atom)
+        if element_match:
+            elements.add(element_match.group(1))
 
-    acc = set()
-    for l in stdout.split('\n'):
-        if l is '':
-            continue
+    for e in elements:
+        save_change(stderr, e)
 
-        a = parse_atom.atom(l)
-        acc.add(a)
-
-    return acc
-
-def get_next_iter():
-
-    global pkgs_pool
-
-    if len(pkgs_pool) is 0:
-        pkgs_pool = set()
-        return (set(), sys.argv[1:])
-
-    available = pkgs_pool - already_done
-    if len(available) is 0:
-        print("> unable to stabilize")
-        sys.exit(1)
-
-    pkgs_pack = available.pop()
-    already_done.add(pkgs_pack)
-    pkgs_pool.remove(pkgs_pack)
-
-    pkgs, deps = pkgs_pack
-
-    ret = set()
-    ret.add(pkgs)
-    ret.update(deps)
-
-    return (ret, set())
-
-## main begin
-
-if len(sys.argv) is 1 or '-h' in sys.argv or '--help' in sys.argv:
-    syntax()
-
-already_done = set()
-pkgs_pool = set()
-
-pkg_re = re.compile(r'^[A-Za-z0-9_][A-Za-z0-9+_.-]*/[A-Za-z0-9_][A-Za-z0-9+_-]*:[A-Za-z0-9_][A-Za-z0-9+_.-]*$')
-dep_re = re.compile(r'required by [(]([^,]+)')
-
-while True:
-
-    pkgs, flags = get_next_iter()
-
-    # run emerge
+def emerge(args):
     cmd = ['emerge', '--pretend']
-    cmd += flags
-    cmd += set(map(lambda x: x.to_str(['category', 'package', 'slot']), pkgs))
+    cmd += args
 
     print('>> ' + ' '.join(cmd))
     proc = subprocess.Popen(cmd,
@@ -119,37 +63,43 @@ while True:
 
     stdout, stderr = proc.communicate()
 
-    if stderr is "" and len(pkgs) is 0:
+    return stderr
+
+## main begin
+
+if len(sys.argv) is 1 or '-h' in sys.argv or '--help' in sys.argv:
+    syntax()
+
+pkg_re = re.compile(r'^[A-Za-z0-9_][A-Za-z0-9+_.-]*/[A-Za-z0-9_][A-Za-z0-9+_-]*:[A-Za-z0-9_][A-Za-z0-9+_.-]*$')
+dep_re = re.compile(r'required by [(]([^,]+)')
+
+while True:
+
+    stderr = emerge(sys.argv[1:])
+
+    if stderr is "":
         break
 
+    save_changes(stderr)
+
     # generate next pkgs to emerge
-    current_atom = None
-    current_blocks = set()
+    pkgs_pool = set()
     for l in stderr.split('\n'):
         pkg_match = pkg_re.match(l)
         dep_match = dep_re.search(l)
 
+        pkg = None
+
         if pkg_match:
-            pkg = parse_atom.atom(pkg_match.group())
-
-            if current_atom:
-                pkgs_pool.add((current_atom, frozenset(current_blocks)))
-                current_blocks = set()
-
-            current_atom = pkg
-
+            pkg = pkg_match.group()
         elif dep_match:
-            atom = dep_match.group(1)
-            pkg = parse_atom.atom(atom)
+            pkg = '=' + dep_match.group(1)
 
-            current_blocks.add(pkg)
+        if pkg:
+            atom = parse_atom.atom(pkg)
+            pkgs_pool.add(atom)
 
-    if current_atom:
-        pkgs_pool.add((current_atom, frozenset(current_blocks)))
+    cmd = set(map(lambda x: x.to_str(['category', 'package', 'slot']), pkgs_pool))
 
-    #for p in frozenset(pkgs):
-    #   pkgs.update(get_parents(p))
-
-    # save the needed flags
-    for f in ['accept_keywords', 'license', 'unmask', 'use']:
-        save_changes(stderr, "package." + f)
+    stderr = emerge(cmd)
+    save_changes(stderr)
