@@ -2,11 +2,17 @@
 
 import re, sys
 
-valid_line = 'app-portage/gentools-9999:0/0::tharvik'
+class AtomParseException(Exception):
+    pass
 
 class atom:
 
     def __init__(self, line):
+
+        if line.startswith('='):
+            pattern = '={category}{package}{version}{slot}?{repository}?'
+        else:
+            pattern = '{category}?{package}{version}?{slot}?{repository}?'
 
         cat = '(([A-Za-z0-9_][A-Za-z0-9+_.-]*)/)'
         pn = '([A-Za-z0-9_][A-Za-z0-9+_]*((-[A-Za-z0-9+_]+)*-[A-Za-z+_]+)*)'
@@ -15,11 +21,16 @@ class atom:
         slot = '(:{0}(/{0})?)'.format(b_slot)
         repo = '(::([A-Za-z0-9_][A-Za-z0-9_-]*))'
 
-        reg = '{}?{}{}?{}?{}?'.format(cat, pn, pv, slot, repo)
+        reg = pattern.format(
+                category=cat, package=pn, version=pv, slot=slot, repository=repo
+            )
 
         pkg_re = re.compile(reg)
 
         match = pkg_re.match(line)
+
+        if not match:
+            raise AtomParseException()
 
         self.category = match.group(2)
         self.package = match.group(3)
@@ -83,5 +94,8 @@ class atom:
         res += __add_if('slot', ':')
         res += __add_if('subslot', '/')
         res += __add_if('repository', '::')
+
+        if 'version' in selector:
+            res = '=' + res
 
         return res
