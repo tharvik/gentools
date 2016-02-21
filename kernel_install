@@ -1,0 +1,56 @@
+#!/bin/sh
+
+set -eu
+
+readonly PROC_NUM=$(awk '	BEGIN {n=0}
+				/^processor/ {n++}
+				END {print n}' /proc/cpuinfo)
+
+alias make="make --jobs=${PROC_NUM}"
+
+silent() {
+	"${@}" >/dev/null 2>/dev/null
+}
+
+efibootmgr_add() {
+	local kernel="${1}"
+	local label="${2}"
+
+	if ! efibootmgr | grep -q "${label}"
+	then
+		silent efibootmgr -c -l "${kernel}" -L "${label}"
+	fi
+}
+
+boot_mounted=false
+if ! mount | grep -q '/boot'
+then
+	mount /boot
+	boot_mounted=true
+fi
+
+make
+make modules_install
+install_out="$(make install)"
+
+kernel_ext="$(echo "${install_out}" | cut -d ' ' -f 3)"
+kernel_version="$(echo "${kernel_ext}" | cut -d '-' -f 1)"
+kernel_tag="$(echo "${kernel_ext}" | cut -d '-' -f 2)"
+kernel_revision="$(echo "${kernel_ext}" | cut -d '-' -f 3)"
+[ -n "${kernel_revision}" ] && kernel_version="${kernel_version}-${kernel_revision}"
+
+boot_name="Gentoo ${kernel_version}"
+[ "${kernel_tag}" != 'gentoo' ] && boot_name="${boot_name} ${kernel_tag}"
+
+if [ -e "/boot/vmlinuz-${kernel_ext}.old" ]
+then
+	efibootmgr_add "\vmlinuz-${kernel_ext}.old" "${boot_name} old"
+fi
+efibootmgr_add "\vmlinuz-${kernel_ext}" "${boot_name}"
+
+if ${boot_mounted}
+then
+	umount /boot
+fi
+
+echo ">> ${boot_name}"
