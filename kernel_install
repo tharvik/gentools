@@ -2,11 +2,7 @@
 
 set -eu
 
-readonly PROC_NUM=$(awk '	BEGIN {n=0}
-				/^processor/ {n++}
-				END {print n}' /proc/cpuinfo)
-
-alias make="make --jobs=${PROC_NUM}"
+alias make="make --jobs=$(nproc)"
 
 silent() {
 	"${@}" >/dev/null 2>/dev/null
@@ -16,7 +12,7 @@ efibootmgr_add() {
 	local kernel="${1}"
 	local label="${2}"
 
-	if ! efibootmgr | grep -q "${label}"
+	if ! efibootmgr | grep -qE "${label}$"
 	then
 		silent efibootmgr -c -l "${kernel}" -L "${label}"
 	fi
@@ -42,15 +38,10 @@ kernel_revision="$(echo "${kernel_ext}" | cut -d '-' -f 3)"
 boot_name="Gentoo ${kernel_version}"
 [ "${kernel_tag}" != 'gentoo' ] && boot_name="${boot_name} ${kernel_tag}"
 
-if [ -e "/boot/vmlinuz-${kernel_ext}.old" ]
-then
-	efibootmgr_add "\vmlinuz-${kernel_ext}.old" "${boot_name} old"
-fi
-efibootmgr_add "\vmlinuz-${kernel_ext}" "${boot_name}"
+efibootmgr_add "\\vmlinuz-${kernel_ext}.old" "${boot_name} old"
+efibootmgr_add "\\vmlinuz-${kernel_ext}" "${boot_name}"
 
 if ${boot_mounted}
 then
 	umount /boot
 fi
-
-echo ">> ${boot_name}"
