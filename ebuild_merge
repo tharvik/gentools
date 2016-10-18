@@ -1,0 +1,26 @@
+#!/bin/sh
+
+set -eu
+
+for f in "${@}"
+do
+	pkg="$(echo "${f}" | cut -d / -f 5-6)"
+
+	category="$(qatom --format '%{CATEGORY}' "${pkg}")"
+	pn="$(qatom --format '%{PN}' "${pkg}")"
+	pv="$(qatom --format '%{PV}' "${pkg}")"
+
+	pr="$(qatom --format '%{PR}' "${pkg}")"
+	[ "${pr}" = 'r0' ] && pr=''
+	[ ! -z "${pr}" ] && pr="-${pr}"
+
+	repository_name="$(awk '/Repository/ {print $NF}' "${f}" | head -n1)"
+	if [ "${repository_name}" = 'gentoo' ]
+	then
+		repository='/usr/portage'
+	else
+		repository="/var/lib/layman/${repository_name}"
+	fi
+
+	ebuild "${repository}/${category}/${pn}/${pn}-${pv}${pr}.ebuild" merge
+done
