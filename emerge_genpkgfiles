@@ -1,87 +1,81 @@
 #!/usr/bin/env python3
 
 import sys, subprocess, re, os, itertools, random
+from typing import Iterable, Mapping, NamedTuple
 
-def syntax():
-    print("""
-Generate unmask for given args if needed.
-One can remove some USE flags and keyword, launch this and it will use emerge to
-generate a list of needed keywords and USEs.
-    """.strip())
+class Pkg(NamedTuple('Pkg', [
+        ('category', str),
+        ('package', str),
+        ('version', str),
+        ('slot', str),
+    ])): pass
 
-    sys.exit(1)
 
-def save_change(stderr, directory):
-
+def save_change(stderr: str, directory: str) -> None:
     begin_re = re.compile(r' \(see "{}" in the portage\(5\) man page for more details\)'.format(directory))
     path = '/etc/portage/{}/required'.format(directory)
 
     content = ''
     copying = False
     for l in stderr.split('\n'):
-
-        if copying and l is "":
+        if copying and l is '':
             copying = False
 
         if copying:
             content += l + '\n'
 
-        if begin_re.match(l):
+        if begin_re.match(l) is not None:
             copying = True
 
-    if content is not '':
-        with open(path, 'a') as f:
-            print(content, file=f)
+    if not content:
+        return
 
-        print('>>> adding changes to ' + directory)
+    with open(path, 'a') as f:
+        print(content, file=f)
 
-def save_changes(stderr):
+    print('>>> adding changes to ' + directory)
 
-    element_re = re.compile(r' \(see "(package.[^"]+)" in the portage\(5\) man page for more details\)')
-
+element_re = re.compile(r' \(see "(package.[^"]+)" in the portage\(5\) man page for more details\)')
+def save_changes(stderr: str) -> None:
     elements = set()
     for l in stderr.split('\n'):
 
         element_match = element_re.match(l)
 
-        if element_match:
+        if element_match is not None:
             elements.add(element_match.group(1))
 
     for e in elements:
         save_change(stderr, e)
 
-def emerge(args):
+def emerge(args: Iterable[str]) -> str:
     cmd = ['emerge', '--pretend']
     cmd += args
 
     print('>> ' + ' '.join(cmd))
-    proc = subprocess.Popen(cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            universal_newlines=True)
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        universal_newlines=True
+    )
 
     stdout, stderr = proc.communicate()
 
     return stderr
 
-def parse_atom(pkg):
-    out = subprocess.check_output(['qatom', pkg], universal_newlines=True)
-    splitted = out.split()
-    return dict(zip(splitted, ['category', 'package', 'version']))
+def parse_atom(pkg: str) -> Pkg:
+    cmd = ['qatom', '--format', '%{CATEGORY} %{PN} %{PV} %{SLOT}', pkg]
+    out = subprocess.check_output(cmd, universal_newlines=True)
+    return Pkg(*out.split())
 
-## main begin
 
-if len(sys.argv) is 1 or '-h' in sys.argv or '--help' in sys.argv:
-    syntax()
-
-pkg_re = re.compile(r'^[A-Za-z0-9_][A-Za-z0-9+_.-]*/[A-Za-z0-9_][A-Za-z0-9+_-]*:[A-Za-z0-9_][A-Za-z0-9+_.-]*$')
-dep_re = re.compile(r'required by [(]([^,]+)')
+pkg_re = re.compile('^[A-Za-z0-9_][A-Za-z0-9+_.-]*/[A-Za-z0-9_][A-Za-z0-9+_-]*:[A-Za-z0-9_][A-Za-z0-9+_.-]*$')
+dep_re = re.compile('required by [(]([^,]+)')
 
 while True:
-
     stderr = emerge(sys.argv[1:])
-
-    if stderr is "":
+    if not stderr:
         break
 
     save_changes(stderr)
@@ -93,17 +87,18 @@ while True:
         dep_match = dep_re.search(l)
 
         pkg = None
-
-        if pkg_match:
+        if pkg_match is not None:
             pkg = pkg_match.group()
-        elif dep_match:
+        elif dep_match is not None:
             pkg = '=' + dep_match.group(1)
 
-        if pkg:
+        if pkg is not None:
             atom = parse_atom(pkg)
             pkgs_pool.add(atom)
 
-    cmd = set(map(lambda x: x.to_str(['category', 'package', 'slot']), pkgs_pool))
+    cmd = {'{}/{}{}'.format(x.category, x.package, x.slot) for x in pkgs_pool}
+    if not cmd:
+        continue
 
     stderr = emerge(cmd)
     save_changes(stderr)
