@@ -2,15 +2,12 @@
 
 set -eu
 
-while true
+while pgrep --list-full emerge | grep -q python
 do
-	running="$(qlop -c | awk '/^ \* / {print $2}')"
 
-	[ -z "${running}" ] && break
-
-	echo "${running}" | while read pkg
+	qlop -c | awk '/^ \* / {print $2}' | head -n1 | while read pkg
 	do
 		echo ">> ${pkg}"
-		tailf -n0 "/var/tmp/portage/${pkg}/temp/build.log" || :
+		tailf -n0 "/var/tmp/portage/${pkg}/temp/build.log"
 	done
 done
