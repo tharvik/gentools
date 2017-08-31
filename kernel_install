@@ -38,8 +38,31 @@ kernel_revision="$(echo "${kernel_ext}" | cut -d '-' -f 3)"
 boot_name="Gentoo ${kernel_version}"
 [ "${kernel_tag}" != 'gentoo' ] && boot_name="${boot_name} ${kernel_tag}"
 
+efi_ro=false
+if mount | grep "^efivarfs" | grep "ro"
+then
+	efi_ro=true
+	efi_mpoint=$(mount | grep "^efivarfs" | cut -d " " -f 3)
+fi
+
+while $efi_ro; do
+	read -p "Allow changes in efivarfs? " yn
+    	case $yn in
+        	[Yy]es)	mount -o remount,rw,relatime efivarfs $efi_mpoint
+			break;;
+        	[Nn]o)	echo "The efi partition is unchanged"
+			break;;
+        	* ) echo "Answer yes or no.";;
+    	esac
+done
+
 efibootmgr_add "\\vmlinuz-${kernel_ext}.old" "${boot_name} old"
 efibootmgr_add "\\vmlinuz-${kernel_ext}" "${boot_name}"
+
+if ${efi_ro}
+then
+	mount -o remount,ro,relatime efivarfs $efi_mpoint
+fi
 
 if ${boot_mounted}
 then
