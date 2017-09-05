@@ -48,7 +48,7 @@ fi
 while $efi_ro; do
 	read -p "Allow changes in efivarfs? " yn
     	case $yn in
-        	[Yy]es)	mount -o remount,rw,relatime efivarfs $efi_mpoint
+        	[Yy]es)	mount -o remount,rw efivarfs $efi_mpoint
 			break;;
         	[Nn]o)	echo "The efi partition is unchanged"
 			break;;
@@ -61,7 +61,7 @@ efibootmgr_add "\\vmlinuz-${kernel_ext}" "${boot_name}"
 
 if ${efi_ro}
 then
-	mount -o remount,ro,relatime efivarfs $efi_mpoint
+	mount -o remount,ro efivarfs $efi_mpoint
 fi
 
 if ${boot_mounted}
