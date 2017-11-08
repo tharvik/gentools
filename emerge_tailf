@@ -8,6 +8,6 @@ do
 	qlop -c | awk '/^ \* / {print $2}' | head -n1 | while read pkg
 	do
 		echo ">> ${pkg}"
-		tailf -n0 "/var/tmp/portage/${pkg}/temp/build.log"
+		tail -f -n0 "/var/tmp/portage/${pkg}/temp/build.log"
 	done
 done
