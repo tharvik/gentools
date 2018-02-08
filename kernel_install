@@ -26,7 +26,10 @@ then
 fi
 
 make
-make modules_install
+if grep -q 'CONFIG_MODULES=y' .config
+then
+	make modules_install
+fi
 install_out="$(make install)"
 
 kernel_ext="$(echo "${install_out}" | cut -d ' ' -f 3)"
