@@ -1,0 +1,24 @@
+#!/bin/sh
+
+set -eu
+
+readonly CONFIG="$1"
+
+cp "$CONFIG" .config
+make olddefconfig
+
+fail=false
+while read line
+do
+	line_without_leading_spaces="$(echo $line)"
+	[ "$line_without_leading_spaces" == '' ] && continue
+	[ "${line_without_leading_spaces:0:1}" == '#' ] && continue
+
+	if ! grep -q "$line" .config
+	then
+		echo "missing $line in resulting config"
+		fail=true
+	fi
+done < "$CONFIG"
+
+$fail && exit 1
