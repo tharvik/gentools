@@ -1,0 +1,9 @@
+#!/bin/sh
+
+. /etc/paludis/bashrc
+
+set -eu
+
+cave sync
+cave generate-metadata
+cave manage-search-index --create "${SEARCH_INDEX:-/var/paludis/index}"
