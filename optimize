@@ -87,15 +87,30 @@ try_run() {
 	return $?
 }
 
-# portage
-run	emerge --update --newuse --deep --with-bdeps=y --backtrack=999 @world "${@}"
-try_run	smart-live-rebuild
-run	emerge @preserved-rebuild
-run	emerge --depclean
-try_run	eclean -d distfiles
-try_run	glsa-check -t all
-run	emaint --fix all
-run	rm -rf /var/tmp/portage
+# package manager
+if [ $PACKAGE_MANAGER = paludis ]
+then
+	set +u
+	. /etc/paludis/bashrc
+	set -u
+
+	run	cave resolve --complete --continue-on-failure if-satisfied --execute world "$@"
+	run	cave fix-linkage
+	run	cave manage-search-index --create "${SEARCH_INDEX:-/var/paludis/index}"
+	run	cave purge --execute
+	run	rm -rf /var/tmp/paludis/*
+else
+	echo 'no $PACKAGE_MANAGER set, defaulting to portage, make a PR for others.'
+
+	run	emerge --update --newuse --deep --with-bdeps=y --backtrack=999 @world "$@"
+	try_run	smart-live-rebuild
+	run	emerge @preserved-rebuild
+	run	emerge --depclean
+	try_run	eclean -d distfiles
+	try_run	glsa-check -t all
+	run	emaint --fix all
+	run	rm -rf /var/tmp/portage
+fi
 
 # system
 try_run	polipo -x
