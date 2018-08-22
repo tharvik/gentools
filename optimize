@@ -87,9 +87,7 @@ try_run() {
 	return $?
 }
 
-# package manager
-if [ $PACKAGE_MANAGER = paludis ]
-then
+paludis_routine() {
 	set +u
 	. /etc/paludis/bashrc
 	set -u
@@ -99,18 +97,33 @@ then
 	run	cave manage-search-index --create "${SEARCH_INDEX:-/var/paludis/index}"
 	run	cave purge --execute
 	run	rm -rf /var/tmp/paludis/*
-else
-	echo 'no $PACKAGE_MANAGER set, defaulting to portage, make a PR for others.'
+}
 
+portage_routine() {
 	run	emerge --update --newuse --deep --with-bdeps=y --backtrack=999 @world "$@"
 	try_run	smart-live-rebuild
 	run	emerge @preserved-rebuild
 	run	emerge --depclean
 	try_run	eclean -d distfiles
+	try_run eclean-kernel -A
 	try_run	glsa-check -t all
 	run	emaint --fix all
 	run	rm -rf /var/tmp/portage
-fi
+}
+
+# package manager
+case $PACKAGE_MANAGER in
+	paludis)
+		paludis_routine
+		;;
+	portage)
+		portage_routine
+		;;
+	*)
+		echo 'no $PACKAGE_MANAGER set, defaulting to portage, make a PR for others.'
+		portage_routine
+		;;
+esac
 
 # system
 try_run	polipo -x
