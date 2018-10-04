@@ -114,14 +114,14 @@ portage_routine() {
 # package manager
 case $PACKAGE_MANAGER in
 	paludis)
-		paludis_routine
+		paludis_routine "$@"
 		;;
 	portage)
-		portage_routine
+		portage_routine "$@"
 		;;
 	*)
 		echo 'no $PACKAGE_MANAGER set, defaulting to portage, make a PR for others.'
-		portage_routine
+		portage_routine "$@"
 		;;
 esac
 
