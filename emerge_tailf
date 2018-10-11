@@ -2,10 +2,12 @@
 
 set -eu
 
+match="$*"
+readonly MATCH="(${match/ /|})"
+
 while pgrep --list-full emerge | grep -q python
 do
-
-	qlop -c | awk '/^ \* / {print $2}' | head -n1 | while read pkg
+	qlop -c | awk "/^ \* .*$MATCH.*$/ {print \$2}" | head -n1 | while read pkg
 	do
 		echo ">> ${pkg}"
 		tail --follow=name -n0 "/var/tmp/portage/${pkg}/temp/build.log" 2>/dev/null || :
