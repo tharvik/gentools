@@ -2,8 +2,22 @@
 
 set -eu
 
-match="$*"
-readonly MATCH="(${match/ /|})"
+get_matcher() {
+	if [ $# -eq 0 ]
+	then
+		return
+	fi
+
+	out="($1"
+	while [ $# -gt 1 ]
+	do
+		out="$out|$1"
+		shift
+	done
+	echo "$out)"
+}
+
+readonly MATCH="$(get_matcher "$@")"
 
 while pgrep --list-full emerge | grep -q python
 do
