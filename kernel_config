@@ -11,8 +11,8 @@ fail=false
 while read line
 do
 	line_without_leading_spaces="$(echo $line)"
-	[ "$line_without_leading_spaces" == '' ] && continue
-	[ "${line_without_leading_spaces:0:1}" == '#' ] && continue
+	[ "$line_without_leading_spaces" = '' ] && continue
+	[ "$(echo "$line_without_leading_spaces" | cut -c 1)" = '#' ] && continue
 
 	if ! grep -q "$line" .config
 	then
