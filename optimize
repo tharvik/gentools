@@ -112,7 +112,7 @@ portage_routine() {
 }
 
 # package manager
-case $PACKAGE_MANAGER in
+case ${PACKAGE_MANAGER:-} in
 	paludis)
 		paludis_routine "$@"
 		;;
