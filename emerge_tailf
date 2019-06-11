@@ -19,9 +19,15 @@ get_matcher() {
 
 readonly MATCH="$(get_matcher "$@")"
 
+qlop_arg='-r'
+if ! qlop $qlop_arg >/dev/null 2>&1
+then
+	qlop_arg='-c'
+fi
+
 while pgrep --list-full emerge | grep -q python
 do
-	qlop -c | awk "/^ \* .*$MATCH.*$/ {print \$2}" | head -n1 | while read pkg
+	qlop $qlop_arg | awk "/^ \* .*$MATCH.*$/ {print \$2}" | head -n1 | while read pkg
 	do
 		echo ">> ${pkg}"
 		tail --follow=name -n0 "/var/tmp/portage/${pkg}/temp/build.log" 2>/dev/null || :
