@@ -21,4 +21,7 @@ do
 	fi
 done < "$CONFIG"
 
-$fail && exit 1
+if $fail
+then
+	exit 1
+fi
