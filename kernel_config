@@ -14,11 +14,18 @@ do
 	[ "$line_without_leading_spaces" = '' ] && continue
 	[ "$(echo "$line_without_leading_spaces" | cut -c 1)" = '#' ] && continue
 
-	if ! grep -q "$line" .config
+	option="${line%%=*}"
+	case "$line" in
+		$option=n) line_match="$(printf "$line\n# $option is not set")";;
+		$option=*) line_match="$line";;
+	esac
+
+	if ! grep -qF "$line_match" .config
 	then
 		echo "missing $line in resulting config"
 		fail=true
 	fi
+
 done < "$CONFIG"
 
 if $fail
