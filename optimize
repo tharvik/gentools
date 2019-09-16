@@ -18,6 +18,7 @@ times ${0} and do not want to flood the sync servers.
 	exit 0
 }
 
+asking=false
 if [ ${#} -gt 0 ]
 then
 	if [ \( "${1}" = '-h' -o "${1}" = '--help' \) ]
@@ -25,7 +26,6 @@ then
 		syntax "${@}"
 	fi
 
-	asking=false
 	[ "${1}" = '-a' ] && asking=true && shift
 fi
 
