@@ -1,33 +1,34 @@
-#!/bin/sh
-
-set -eu
+#!/bin/sh -eu
 
 get_matcher() {
 	if [ $# -eq 0 ]
 	then
+		echo '/ ETA: [0-9]+$/'
 		return
 	fi
 
-	out="($1"
-	while [ $# -gt 1 ]
+	local out="/$1"
+	shift
+	for arg
 	do
-		out="$out|$1"
-		shift
+		out="$out|$arg"
 	done
-	echo "$out)"
+	echo "$out/"
 }
+
+[ $# -eq 1 ] && if [ \( "$1" = -h -o "$1" = --help \) ]
+then
+	echo "$0 [pkg-to-include]..."
+	exit 0
+fi
 
 readonly MATCH="$(get_matcher "$@")"
 
-qlop_arg='-r'
-if ! qlop $qlop_arg >/dev/null 2>&1
-then
-	qlop_arg='-c'
-fi
-
 while pgrep --list-full emerge | grep -q python
 do
-	qlop $qlop_arg | awk "/^ \* .*$MATCH.*$/ {print \$2}" | head -n1 | while read pkg
+	qlop -rMF '%{CATEGORY}/%{P}' |
+		awk "$MATCH "'{print gensub("\\.\\.\\.$", "", 1, $3)}' |
+		while read pkg
 	do
 		echo ">> ${pkg}"
 		tail --follow=name -n0 "/var/tmp/portage/${pkg}/temp/build.log" 2>/dev/null || :
