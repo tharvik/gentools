@@ -130,7 +130,7 @@ portage_routine() {
 		export EMERGE_DEFAULT_OPTS='--ask'
 	fi
 
-	run	emerge --update --newuse --deep --with-bdeps=y --backtrack=999 @world "${@}"
+	run	emerge --update --newuse --deep --with-bdeps=y --complete-graph=y @world "${@}"
 	try_run	smart-live-rebuild
 	run	emerge @preserved-rebuild
 	run	emerge --depclean
