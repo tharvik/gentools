@@ -5,29 +5,24 @@ set -o pipefail
 
 syntax () {
 	cat <<- EOF
-${0} [-a] [arguments-to-optimize-world...]
+${0} [-h|--help]
+${0} [-a|--ask] [arguments-to-optimize-world...]
 
 ${0} will do nearly all common administrative task needed under a Gentoo system.
 
 I will not sync the portage tree for you, because you may want to rerun multiple
 times ${0} and do not want to flood the sync servers.
 
-	-a	add --ask to emerge opts
+	-a
+	--ask	add --ask to some commands
 	EOF
 
 	exit 0
 }
 
 asking=false
-if [ ${#} -gt 0 ]
-then
-	if [ \( "${1}" = '-h' -o "${1}" = '--help' \) ]
-	then
-		syntax "${@}"
-	fi
-
-	[ "${1}" = '-a' ] && asking=true && shift
-fi
+[ ${#} -eq 1 ] && [ "${1}" = '-h' -o "${1}" = '--help' ] && syntax "${@}"
+[ ${#} -ge 1 ] && [ "${1}" = '-a' -o "${1}" = '--ask' ] && asking=true && shift
 
 tmpfile="$(mktemp)"
 running_cmd=''
@@ -125,17 +120,19 @@ paludis_routine() {
 }
 
 portage_routine() {
+	local emerge_opts= eclean_kernel_opts=
 	if $asking
 	then
-		export EMERGE_DEFAULT_OPTS='--ask'
+		emerge_opts=--ask
+		eclean_kernel_opts=-A
 	fi
 
-	run	emerge --update --newuse --deep --with-bdeps=y --complete-graph=y @world "${@}"
-	try_run	smart-live-rebuild
-	run	emerge @preserved-rebuild
-	run	emerge --depclean
+	run	emerge --update --newuse --deep --with-bdeps=y --complete-graph=y @world "${@}" ${emerge_opts}
+	try_run	smart-live-rebuild -- ${emerge_opts}
+	run	emerge @preserved-rebuild ${emerge_opts}
+	run	emerge --depclean ${emerge_opts}
 	try_run	eclean -d distfiles
-	try_run eclean-kernel -A
+	try_run eclean-kernel ${eclean_kernel_opts}
 	try_run	glsa-check -t all
 	run	emaint --fix all
 	run	rm -rf /var/tmp/portage
