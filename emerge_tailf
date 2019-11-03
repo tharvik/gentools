@@ -26,7 +26,7 @@ readonly MATCH="$(get_matcher "$@")"
 
 while pgrep --list-full emerge | grep -q python
 do
-	qlop -rMF '%{CATEGORY}/%{P}' |
+	qlop -rMF '%{CATEGORY}/%{PF}' | tac |
 		awk "$MATCH "'{print gensub("\\.\\.\\.$", "", 1, $3)}' |
 		while read pkg
 	do
