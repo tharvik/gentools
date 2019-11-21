@@ -73,19 +73,14 @@ run() {
 	echo ">> ${@}"
 
 	local regex=''
-	local opts=''
-	case "${1}" in
-		emerge)
-			regex='Messages'
-			opts='--color=y';;
-		smart-live-rebuild)
-			regex='Messages'
-			opts='-- --color=y';;
-	esac
+	if [ "${1}" = emerge ] || [ "${1}" = smart-live-rebuild ]
+	then
+		regex='Messages'
+	fi
 
 	set +e
 	running_cmd="${@}"
-	unbuffer "${@}" ${opts} 2>&1 | tee "${tmpfile}"
+	unbuffer "${@}" 2>&1 | tee "${tmpfile}"
 	if [ ${?} -ne 0 ]
 	then
 		failed_cmd+="
@@ -120,10 +115,10 @@ paludis_routine() {
 }
 
 portage_routine() {
-	local emerge_opts= eclean_kernel_opts=
+	local emerge_opts='--color=y' eclean_kernel_opts=
 	if $asking
 	then
-		emerge_opts=--ask
+		emerge_opts+=' --ask'
 		eclean_kernel_opts=-A
 	fi
 
