@@ -3,7 +3,6 @@
 get_matcher() {
 	if [ $# -eq 0 ]
 	then
-		echo '/ ETA: [0-9]+$/'
 		return
 	fi
 
@@ -30,6 +29,7 @@ do
 		awk "$MATCH "'{print gensub("\\.\\.\\.$", "", 1, $3)}' |
 		while read pkg
 	do
+		pgrep --list-full --full /ebuild.sh | grep -qF "${pkg}" || continue
 		echo ">> ${pkg}"
 		tail --follow=name -n0 "/var/tmp/portage/${pkg}/temp/build.log" 2>/dev/null || :
 	done
