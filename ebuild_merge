@@ -1,8 +1,0 @@
-#!/bin/sh
-
-set -eu
-
-for f in "${@}"
-do
-	ebuild_from-log "${f}" merge
-done
