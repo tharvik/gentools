@@ -5,7 +5,7 @@ set -eu
 readonly f="${1}"
 shift
 
-pkg="$(echo "${f}" | cut -d / -f 5-6)"
+pkg="$(awk '/Package/ {print $NF}' "${f}" | head -n1)"
 
 category="$(qatom --format '%{CATEGORY}' "${pkg}")"
 pn="$(qatom --format '%{PN}' "${pkg}")"
@@ -16,11 +16,6 @@ pr="$(qatom --format '%{PR}' "${pkg}")"
 [ ! -z "${pr}" ] && pr="-${pr}"
 
 repository_name="$(awk '/Repository/ {print $NF}' "${f}" | head -n1)"
-if [ "${repository_name}" = 'gentoo' ]
-then
-	repository='/usr/portage'
-else
-	repository="/var/lib/layman/${repository_name}"
-fi
+repository="$(portageq get_repo_path / "${repository_name}")"
 
 ebuild "${repository}/${category}/${pn}/${pn}-${pv}${pr}.ebuild" "${@}"
