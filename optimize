@@ -130,7 +130,7 @@ portage_routine() {
 	try_run eclean-kernel ${eclean_kernel_opts}
 	try_run	glsa-check -t all
 	run	emaint --fix all
-	run	rm -rf /var/tmp/portage
+	run	rm -rf /var/tmp/portage/*
 }
 
 case ${PACKAGE_MANAGER:-} in
