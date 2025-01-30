@@ -119,7 +119,7 @@ portage_routine() {
 	if $asking
 	then
 		emerge_opts+=' --ask'
-		eclean_kernel_opts=-A
+		eclean_kernel_opts='--ask'
 	fi
 
 	run	emerge --update --newuse --deep --with-bdeps=y --complete-graph=y @world "${@}" ${emerge_opts}
@@ -127,7 +127,7 @@ portage_routine() {
 	run	emerge @preserved-rebuild ${emerge_opts}
 	run	emerge --depclean ${emerge_opts}
 	try_run	eclean -d distfiles
-	try_run eclean-kernel ${eclean_kernel_opts}
+	try_run eclean-kernel --all ${eclean_kernel_opts}
 	try_run	glsa-check -t all
 	run	emaint --fix all
 	run	rm -rf /var/tmp/portage/*
