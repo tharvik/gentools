@@ -1,7 +1,0 @@
-#!/bin/sh
-
-. /etc/paludis/bashrc
-
-set -eu
-
-exec cave search --index "$SEARCH_INDEX" "$@"

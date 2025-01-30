@@ -102,18 +102,6 @@ try_run() {
 	fi
 }
 
-paludis_routine() {
-	set +u
-	. /etc/paludis/bashrc
-	set -u
-
-	run	cave resolve --complete --continue-on-failure if-satisfied --execute world "${@}"
-	run	cave fix-linkage
-	run	cave manage-search-index --create "${SEARCH_INDEX:-/var/paludis/index}"
-	run	cave purge --execute
-	run	rm -rf /var/tmp/paludis/*
-}
-
 portage_routine() {
 	local emerge_opts='--color=y' eclean_kernel_opts=
 	if $asking
@@ -134,9 +122,6 @@ portage_routine() {
 }
 
 case ${PACKAGE_MANAGER:-} in
-	paludis)
-		paludis_routine "${@}"
-		;;
 	portage)
 		portage_routine "${@}"
 		;;
