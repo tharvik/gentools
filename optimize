@@ -149,4 +149,3 @@ esac
 try_run	polipo -x
 try_run	updatedb
 try_run	rlpkg --all --reset
-try_run	revdep-pax -f
