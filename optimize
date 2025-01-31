@@ -115,7 +115,7 @@ portage_routine() {
 	run	emerge @preserved-rebuild ${emerge_opts}
 	run	emerge --depclean ${emerge_opts}
 	try_run	eclean -d distfiles
-	try_run eclean-kernel --all ${eclean_kernel_opts}
+	try_run eclean-kernel --num=1 ${eclean_kernel_opts}
 	try_run	glsa-check -t all
 	run	emaint --fix all
 	run	rm -rf /var/tmp/portage/*
